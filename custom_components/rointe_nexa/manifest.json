@@ -1,0 +1,16 @@
+{
+    "domain": "rointe_nexa",
+    "name": "Rointe Nexa",
+    "codeowners": [
+        "@alemuro"
+    ],
+    "config_flow": true,
+    "documentation": "https://github.com/alemuro/ha-rointe-nexa",
+    "iot_class": "cloud_push",
+    "issue_tracker": "https://github.com/alemuro/ha-rointe-nexa/issues",
+    "requirements": [
+        "requests>=2.28.0",
+        "websocket-client>=1.6.0"
+    ],
+    "version": "0.2.0"
+}

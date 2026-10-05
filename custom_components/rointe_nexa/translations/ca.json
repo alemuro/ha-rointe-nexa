@@ -1,0 +1,71 @@
+{
+    "config": {
+        "abort": {
+            "already_configured": "El compte ja està configurat",
+            "reauth_successful": "La reautenticació ha estat correcta"
+        },
+        "error": {
+            "cannot_connect": "No s'ha pogut connectar",
+            "invalid_auth": "Autenticació no vàlida",
+            "unknown": "Error inesperat"
+        },
+        "step": {
+            "user": {
+                "data": {
+                    "username": "Correu electrònic",
+                    "password": "Contrasenya"
+                },
+                "title": "Connecta amb Rointe Nexa"
+            }
+        }
+    },
+    "entity": {
+        "sensor": {
+            "surface_temperature": {
+                "name": "Temperatura de superfície"
+            },
+            "power": {
+                "name": "Potència"
+            },
+            "nominal_power": {
+                "name": "Potència nominal"
+            },
+            "effective_power": {
+                "name": "Potència efectiva"
+            },
+            "wifi_signal": {
+                "name": "Senyal WiFi"
+            }
+        },
+        "binary_sensor": {
+            "heating": {
+                "name": "Escalfant"
+            },
+            "window_open": {
+                "name": "Finestra oberta"
+            },
+            "connectivity": {
+                "name": "Connectivitat"
+            }
+        },
+        "switch": {
+            "keypad_lock": {
+                "name": "Bloqueig de teclat"
+            },
+            "window_detection": {
+                "name": "Detecció de finestres obertes"
+            }
+        },
+        "number": {
+            "comfort_temperature": {
+                "name": "Temperatura Confort"
+            },
+            "eco_temperature": {
+                "name": "Temperatura Eco"
+            },
+            "ice_temperature": {
+                "name": "Temperatura Desglaç"
+            }
+        }
+    }
+}
