@@ -171,8 +171,6 @@ class RointeNexaClimate(RointeEntity, ClimateEntity):
         attrs: dict[str, Any] = {}
         if (surface_temp := self.device_data.get("temp_surface")) is not None:
             attrs["surface_temperature"] = surface_temp
-        if (nom_power := self.device_data.get("nominal_power")) is not None:
-            attrs["nominal_power"] = nom_power
         if (comfort_temp := self.device_data.get("comfort")) is not None:
             attrs["preset_comfort_temperature"] = comfort_temp
         if (eco_temp := self.device_data.get("eco")) is not None:
@@ -192,6 +190,43 @@ class RointeNexaClimate(RointeEntity, ClimateEntity):
         if (temp := kwargs.get(ATTR_TEMPERATURE)) is None:
             return
 
+        active_preset = self._get_active_preset()
+
+        if self.hvac_mode == HVACMode.AUTO:
+            # If in ice/away preset in schedule, ignore changes to protect anti-frost setting
+            if active_preset in ("ice", "away"):
+                _LOGGER.info(
+                    "Ignoring temperature change for %s: device is in %s mode (schedule)",
+                    self.name,
+                    active_preset,
+                )
+                self.async_write_ha_state()
+                return
+
+            # If in comfort or eco, update the respective preset temperature
+            if active_preset in ("comfort", "eco"):
+                resp = await self.hass.async_add_executor_job(
+                    self.coordinator.api.set_preset_temperature,
+                    self.serial,
+                    active_preset,
+                    temp,
+                )
+                if resp.success:
+                    if dev_data := self.coordinator.data.get(self.serial, {}).get("data"):
+                        dev_data[active_preset] = temp
+                    self.async_write_ha_state()
+                    await asyncio.sleep(0.5)
+                    await self.coordinator.async_request_refresh()
+                else:
+                    _LOGGER.error(
+                        "Failed to set %s preset temperature for %s: %s",
+                        active_preset,
+                        self.name,
+                        resp.error_message,
+                    )
+                return
+
+        # Default behavior in HEAT / manual mode
         resp = await self.hass.async_add_executor_job(
             self.coordinator.api.set_temperature, self.serial, temp
         )

@@ -24,17 +24,11 @@
             "surface_temperature": {
                 "name": "Temperatura de superficie"
             },
-            "power": {
-                "name": "Potencia"
-            },
-            "nominal_power": {
-                "name": "Potencia nominal"
-            },
-            "effective_power": {
-                "name": "Potencia efectiva"
-            },
             "wifi_signal": {
                 "name": "Señal WiFi"
+            },
+            "schedule": {
+                "name": "Programación"
             }
         },
         "binary_sensor": {
@@ -62,9 +56,6 @@
             },
             "eco_temperature": {
                 "name": "Temperatura Eco"
-            },
-            "ice_temperature": {
-                "name": "Temperatura Antihielo"
             }
         }
     }

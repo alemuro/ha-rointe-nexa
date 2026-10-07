@@ -1,6 +1,9 @@
 """Sensors for Rointe Nexa."""
 from __future__ import annotations
 
+from datetime import datetime
+from typing import Any
+
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
@@ -10,7 +13,6 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
     EntityCategory,
-    UnitOfPower,
     UnitOfTemperature,
 )
 from homeassistant.core import HomeAssistant
@@ -34,10 +36,8 @@ async def async_setup_entry(
         entities.extend(
             [
                 RointeSurfaceTempSensor(coordinator, device),
-                RointeCurrentPowerSensor(coordinator, device),
-                RointeNominalPowerSensor(coordinator, device),
-                RointeEffectivePowerSensor(coordinator, device),
                 RointeWifiSignalSensor(coordinator, device),
+                RointeScheduleSensor(coordinator, device),
             ]
         )
 
@@ -67,85 +67,6 @@ class RointeSurfaceTempSensor(RointeEntity, SensorEntity):
             return None
 
 
-class RointeCurrentPowerSensor(RointeEntity, SensorEntity):
-    """Sensor for current instant power consumption."""
-
-    _attr_device_class = SensorDeviceClass.POWER
-    _attr_state_class = SensorStateClass.MEASUREMENT
-    _attr_native_unit_of_measurement = UnitOfPower.WATT
-    _attr_translation_key = "power"
-
-    def __init__(self, coordinator: RointeDataUpdateCoordinator, device) -> None:
-        """Initialize sensor."""
-        super().__init__(coordinator, device, "current_power")
-        self._attr_name = "Power"
-
-    @property
-    def native_value(self) -> float | None:
-        """Return current power (nominal effective power when heating, 0 when idle/off)."""
-        power_state = self.device_data.get("power")
-        warming = self.device_data.get("status_warming")
-        status = self.device_data.get("status")
-
-        if power_state == 1 or status == "off":
-            return 0.0
-
-        if warming == 2:
-            eff_power = self.device_data.get("nominal_effective_power") or self.device_data.get("nominal_power")
-            try:
-                return float(eff_power) if eff_power is not None else None
-            except (ValueError, TypeError):
-                return None
-
-        return 0.0
-
-
-class RointeNominalPowerSensor(RointeEntity, SensorEntity):
-    """Sensor for radiator nominal power."""
-
-    _attr_device_class = SensorDeviceClass.POWER
-    _attr_entity_category = EntityCategory.DIAGNOSTIC
-    _attr_native_unit_of_measurement = UnitOfPower.WATT
-    _attr_translation_key = "nominal_power"
-
-    def __init__(self, coordinator: RointeDataUpdateCoordinator, device) -> None:
-        """Initialize sensor."""
-        super().__init__(coordinator, device, "nominal_power")
-        self._attr_name = "Nominal Power"
-
-    @property
-    def native_value(self) -> float | None:
-        """Return nominal power."""
-        power = self.device_data.get("nominal_power")
-        try:
-            return float(power) if power is not None else None
-        except (ValueError, TypeError):
-            return None
-
-
-class RointeEffectivePowerSensor(RointeEntity, SensorEntity):
-    """Sensor for radiator nominal effective power."""
-
-    _attr_device_class = SensorDeviceClass.POWER
-    _attr_entity_category = EntityCategory.DIAGNOSTIC
-    _attr_native_unit_of_measurement = UnitOfPower.WATT
-    _attr_translation_key = "effective_power"
-
-    def __init__(self, coordinator: RointeDataUpdateCoordinator, device) -> None:
-        """Initialize sensor."""
-        super().__init__(coordinator, device, "effective_power")
-        self._attr_name = "Effective Power"
-
-    @property
-    def native_value(self) -> float | None:
-        """Return nominal effective power."""
-        power = self.device_data.get("nominal_effective_power")
-        try:
-            return float(power) if power is not None else None
-        except (ValueError, TypeError):
-            return None
-
-
 class RointeWifiSignalSensor(RointeEntity, SensorEntity):
     """Sensor for WiFi signal strength."""
 
@@ -168,3 +89,109 @@ class RointeWifiSignalSensor(RointeEntity, SensorEntity):
             return int(signal) if signal is not None else None
         except (ValueError, TypeError):
             return None
+
+
+class RointeScheduleSensor(RointeEntity, SensorEntity):
+    """Sensor exposing radiator schedule and active programmed preset."""
+
+    _attr_icon = "mdi:calendar-clock"
+    _attr_translation_key = "schedule"
+
+    _DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+
+    def __init__(self, coordinator: RointeDataUpdateCoordinator, device) -> None:
+        """Initialize schedule sensor."""
+        super().__init__(coordinator, device, "schedule")
+        self._attr_name = "Schedule"
+
+    def _parse_slot(self, code: str) -> str:
+        """Map schedule character code to preset name."""
+        char = code.upper()
+        if char == "C":
+            return "Comfort"
+        if char == "E":
+            return "Eco"
+        if char in ("I", "A", "O", "0"):
+            return "Ice"
+        return "Unknown"
+
+    def _get_raw_schedule(self) -> list[str] | None:
+        """Return raw schedule list from device data."""
+        sched = self.device_data.get("schedule")
+        if isinstance(sched, list):
+            return sched
+        if isinstance(sched, dict):
+            return [sched.get(str(i), "") for i in range(7)]
+        return None
+
+    @property
+    def native_value(self) -> str | None:
+        """Return current programmed preset name."""
+        sched = self._get_raw_schedule()
+        if not sched:
+            return None
+
+        now = datetime.now()
+        weekday = now.weekday()
+        hour = now.hour
+
+        if len(sched) > weekday and len(sched[weekday]) > hour:
+            return self._parse_slot(sched[weekday][hour])
+        return None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return schedule details and upcoming changes."""
+        sched = self._get_raw_schedule()
+        if not sched:
+            return {}
+
+        now = datetime.now()
+        weekday = now.weekday()
+        hour = now.hour
+
+        schedule_by_day = {
+            day_name: sched[idx] if len(sched) > idx else ""
+            for idx, day_name in enumerate(self._DAYS)
+        }
+
+        today_str = sched[weekday] if len(sched) > weekday else ""
+        today_hourly = {
+            f"{h:02d}:00": self._parse_slot(today_str[h]) if len(today_str) > h else "Unknown"
+            for h in range(24)
+        }
+
+        current_preset = self.native_value
+
+        # Calculate next scheduled change within the next 7 days (168 hours)
+        next_change = None
+        for offset in range(1, 168):
+            target_hour = (hour + offset) % 24
+            target_day_idx = (weekday + (hour + offset) // 24) % 7
+            day_str = sched[target_day_idx] if len(sched) > target_day_idx else ""
+            if len(day_str) > target_hour:
+                target_slot = self._parse_slot(day_str[target_hour])
+                if target_slot != current_preset:
+                    next_change = {
+                        "day": self._DAYS[target_day_idx],
+                        "time": f"{target_hour:02d}:00",
+                        "preset": target_slot,
+                        "in_hours": offset,
+                    }
+                    break
+
+        attrs: dict[str, Any] = {
+            "current_day": self._DAYS[weekday],
+            "current_hour": hour,
+            "current_preset": current_preset,
+            "schedule": schedule_by_day,
+            "today_schedule": today_str,
+            "today_hourly": today_hourly,
+        }
+
+        if next_change:
+            attrs["next_change"] = f"{next_change['time']} ({next_change['preset']})"
+            attrs["next_change_detail"] = next_change
+
+        return attrs
+
